@@ -197,3 +197,4 @@ class AnnotateTab:
         
     def save_dataset(self):
         self.df.to_csv(dpg.get_value("input_output_csv"))
+        print("Dataset successfully saved to", dpg.get_value("input_output_csv"))
