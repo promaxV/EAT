@@ -66,7 +66,8 @@ class AnnotateTab:
                                 dpg.add_button(label="Отмена", callback=self.cancel_callback)
                                 
                             dpg.add_button(label="Сохранить датасет", callback=self.save_dataset)
-
+                            
+        self.load_new_random_image()
  
     def clear_all_data(self):
         self.data = {}
@@ -91,8 +92,9 @@ class AnnotateTab:
         random_test_images = list(filter(lambda x: "png" in x, random_test_images))
         
         random_image = np.random.choice(random_test_images, 1)[0]
-    
-        source = cv2.imread(source_folder+"/"+random_test+"/"+random_image, cv2.IMREAD_GRAYSCALE)
+
+        self.image_souce_path = source_folder+"/"+random_test+"/"+random_image
+        source = cv2.imread(self.image_souce_path, cv2.IMREAD_GRAYSCALE)
         random_part = np.random.binomial(1, 0.5)
         
         if random_part == 0:
@@ -102,7 +104,11 @@ class AnnotateTab:
         
         self.image = source
         
-            
+        self.image_hash = ".".join(list(map(str, cv2.img_hash.blockMeanHash(self.image, mode=1)[0])))
+        if len(self.df["image_hash"].values)>0:
+            if self.image_hash in self.df["image_hash"].values:
+                self.load_new_random_image()
+        
         img = cv2.resize(source, (512, 512))
         img_buf = [(img.flatten()/255)[::-1]]*3
         dpg.set_value("texture_eye", (np.vstack([*img_buf, np.ones((512*512)).tolist()])).T.flatten().tolist())
@@ -133,7 +139,8 @@ class AnnotateTab:
                                 tag = circle_tag, 
                                 parent="drawlist_eye")
             if dpg.get_value("checkbox_ellipse"):
-                self.data[self.label]["ellipse"] = cv2.fitEllipse(np.array(self.data[self.label]["points"]).astype(np.float32))
+                if len(self.data[self.label]["points"])>4:
+                    self.data[self.label]["ellipse"] = cv2.fitEllipse(np.array(self.data[self.label]["points"]).astype(np.float32))
                 
                 # THERE IS NO FUNCTION IN DPG TO DRAW ROTATED ELLIPSE
                 # TODO DRAW ROTATED ELLIPSE ON IMAGE
@@ -182,10 +189,12 @@ class AnnotateTab:
         self.delete_all_fitting()
         self.clear_all_data()
         
+        self.reset_label()
+        
     def add_to_df(self):
-        data_list = [self.image, cv2.img_hash.blockMeanHash(self.image, mode=1)]
+        data_list = [self.image_souce_path, self.image_hash]
         for label in self.labels:
-            data_list.append(np.array(self.data[label]["points"])/4)
+            data_list.append((np.array(self.data[label]["points"])/4).tolist())
             data_list.append(self.data[label]["circle_ls"][0][0]/4)
             data_list.append(self.data[label]["circle_ls"][0][1]/4)
             data_list.append(self.data[label]["circle_ls"][1]/4)
@@ -198,3 +207,7 @@ class AnnotateTab:
     def save_dataset(self):
         self.df.to_csv(dpg.get_value("input_output_csv"))
         print("Dataset successfully saved to", dpg.get_value("input_output_csv"))
+        
+    def reset_label(self):
+        dpg.set_value("radio_list_labels", self.labels[0])
+        self.label_change()
